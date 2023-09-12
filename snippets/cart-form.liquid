@@ -1,0 +1,367 @@
+<cart-form id="AjaxCartForm">
+
+	{%- if template != 'cart' and settings.cart_free_shipping -%}
+		<div class="cart-notice text-size--small hide-if-empty-cart">
+			<shipping-notice
+				data-free-shipping="{{ settings.cart_free_shipping_amount | times: 100 }}"
+				data-cart-total="{{ cart.total_price }}"
+			>
+				<span data-js-free-shipping-text></span>
+				<span class="cart-notice__slider">
+					<span class="cart-notice__slider-bar" data-js-free-shipping-slider></span>
+				</span>
+			</shipping-notice>
+		</div>
+		<script src="{{ 'component-shipping-notice.js' | asset_url }}" defer></script>
+	{%- endif -%}
+
+  {% assign cart_item_count = 0 %}
+  {% liquid
+    for item in cart.items
+      assign additional_product = nil
+
+      for property in item.properties
+        if property.first == '_additionalProduct'
+          assign additional_product = true
+        endif
+      endfor
+
+      unless additional_product
+        assign cart_item_count = cart_item_count | plus: item.quantity
+      endunless
+    endfor
+  %}
+  
+	<form action="{{ routes.cart_url }}" method="post" novalidate class="cart__form {% if cart_item_count == 0 %} cart--empty {% endif %}" id="cart">
+	
+		<div class="cart-holder" data-items="{{ cart.items.size }}">
+			
+			<div class="cart__items">
+
+				{%- if cart_item_count > 0 -%}
+				
+					{%- for item in cart.items -%}
+            {% assign totalPrice = item.final_line_price  %}
+            {% liquid
+              assign additional_product = nil
+              for property in item.properties
+                if property.first == '_additionalProduct'
+                  assign additional_product = true
+                endif
+              endfor
+            %}
+
+            {%- assign property_size = item.properties | size -%}
+            {%- if property_size > 0 -%}
+
+              {% comment %} Check for main group product {% endcomment %}
+              {% assign mainProId = nil %}
+              {% assign main_group_product = nil %}
+              {% assign main_bundle_product = nil %}
+
+              {%- for p in item.properties -%}
+                {% if p.first == '_mainGroupProduct' %}
+                  {% assign mainProId = p.last %}
+                  {% assign main_group_product = p.last %}
+                {% endif %}
+                {% if p.first == '_mainBundleProduct' %}
+                  {% assign main_bundle_product = p.last %}
+                {% endif %}
+              {%- endfor -%}
+              
+              {% comment %} Check for additional product {% endcomment %}
+              {% assign additionalPropID = nil %}
+
+              {%- for p in item.properties -%}
+                {%- assign p_first_char = p.first | slice: 0 -%}
+                {%- if p.last != blank and p_first_char != '_' -%}
+                  {% if mainProId != nil %}
+                    {% for cart_item in cart.items %}
+                      {% for props in cart_item.properties %}
+                        {% if props.first == '_additionalProduct' and props.last == mainProId %}
+                          {% assign additionalPropID = props.last %}
+                        {% endif %}
+                      {% endfor %}
+                    {% endfor %}
+                  {% endif %}
+                {%- endif -%}
+              {%- endfor -%}
+
+              {% if additionalPropID and mainProId %}
+                {% for cart_item in cart.items %}
+                  {% for props in cart_item.properties %}
+                    {% if props.first == '_additionalProduct' and props.last == additionalPropID and props.last == mainProId %}
+                    {% assign add_price = cart_item.price | times: cart_item.quantity %}
+                    {% assign totalPrice = totalPrice | plus: add_price %}
+                    {% endif %}
+                  {% endfor %}
+                {% endfor %}
+              {% endif %}
+              
+            {%- endif -%}
+
+              <div id="item-{{ item.id }}" 
+                class="cart-item {% if additional_product %}hidden{% endif %} {% if item.product.id == settings.gift_wrap_product.id %} cart-item--gift-wrapping {% endif %}" 
+                data-title="{{ item.product.title | escape }} {%- unless item.product.has_only_default_variant -%} ({{ item.variant.title | escape }}) {%- endunless -%}" 
+                data-id="{{ item.key }}" 
+                data-product-id="{{ item.product.id }}" 
+                data-qty="{{ item.quantity }}" 
+                {% if main_bundle_product %}
+                  data-main-product="{{ main_bundle_product }}"
+                {% elsif main_group_product %}
+                  data-main-product="{{ main_group_product }}"
+                {% endif %}
+                data-js-cart-item
+              >
+                <a href="{{ item.url }}" class="cart-item__thumbnail">
+                  {%- render 'lazy-image-small', image: item.image, aspect_ratio: settings.cart_image_ratio, fit: settings.cart_image_fit, class: 'lazy-image--scale-animation' -%}
+                </a>
+
+                <div class="cart-item__content">
+
+                  <div>
+
+
+                    {%- unless item.gift_card -%}
+                      <div class="cart-item__price">
+                        {%- if item.final_line_price < item.original_line_price -%}
+                          <span class="visually-hidden">{{ 'general.accessibility_labels.price.regular' | t }}</span>
+                          <strong>{{ item.final_line_price | money }}</strong>
+                          <span class="visually-hidden">{{ 'general.accessibility_labels.price.sale' | t }}</span>
+                          <span><del>{{ item.original_line_price | money }}</del></span>
+                        {%- elsif item.variant.compare_at_price > item.variant.price -%}
+                          <span class="visually-hidden">{{ 'general.accessibility_labels.price.regular' | t }}</span>
+                          <strong>{{ item.final_line_price | money }}</strong>
+                          <span class="visually-hidden">{{ 'general.accessibility_labels.price.sale' | t }}</span>
+                          <span><del>{{ item.variant.compare_at_price | times: item.quantity | money }}</del></span>
+                        {%- else -%}
+                          <span class="visually-hidden">{{ 'general.accessibility_labels.price.regular' | t }}</span>
+                          <strong>{{ totalPrice | money }}</strong>
+                        {%- endif -%}
+                      </div>
+                    {%- endunless -%}
+
+                    {%- if item.unit_price_measurement -%}
+                      <span class="cart-item__unit-price text-size--small text-color--opacity">
+                        {{ item.unit_price | money }} / 
+                        {% if item.unit_price_measurement.reference_value != 1 %}
+                          {{ item.unit_price_measurement.reference_value }}
+                        {% endif %}
+                        {{ item.unit_price_measurement.reference_unit }}
+                      </span>
+                    {%- endif -%}
+
+                    <a href="{{ item.url }}" class="cart-item__title">
+                      <span class="text-animation--underline-thin">{{ item.product.title | escape }}</span>
+                    </a>
+
+                    {%- unless item.product.has_only_default_variant -%}
+                        {%- for option in item.options_with_values -%}
+                          <span class="cart-item__variant text-size--small text-color--opacity">
+                            {{ option.name }}: {{ option.value }}
+                        </span>
+                        {%- endfor -%}
+                    {%- endunless -%}
+
+                    {%- if item.selling_plan_allocation -%}
+                      <span class="text-size--small">
+                        {{ item.selling_plan_allocation.selling_plan.name }} 
+                      </span>
+                    {%- endif -%}
+
+                    {%- if item.line_level_discount_allocations.size > 0 -%}
+                      {%- for discount_allocation in item.line_level_discount_allocations -%}
+                        <spann class="text-size--small">{{ 'cart.discount' | t }} {{ discount_allocation.discount_application.title }} (-{{ discount_allocation.amount | money }})</spann>
+                      {%- endfor -%}
+                    {%- endif -%}
+
+                    {%- assign property_size = item.properties | size -%}
+                    {%- if property_size > 0 -%}
+                      {%- for p in item.properties -%}
+                        {%- assign p_first_char = p.first | slice: 0 -%}
+                        {%- if p.last != blank and p_first_char != '_' -%}
+                          <span {% if p.first == 'bundle' %}style="display: none;"{% endif %} 
+                            class="cart-item__property text-line-height--small"
+                          >
+                            <strong>{{ p.first }}: </strong>
+                            {%- if p.last contains '/uploads/' -%}
+                              <a href="{{ p.last }}">{{ p.last | split: '/' | last }}</a>
+                            {%- else -%}
+                              <span>{{ p.last }}</span>
+                            {%- endif -%}
+                          </span>
+
+                          {% if mainProId != nil %}
+                            {% for cart_item in cart.items %}
+                              {% for props in cart_item.properties %}
+                                {% if props.first == '_additionalProduct' and props.last == mainProId %}
+                                  {% assign additionalPropID = props.last %}
+                                {% endif %}
+                              {% endfor %}
+                            {% endfor %}
+
+                            {% comment %} Additional product price {% endcomment %}
+                            {% if additionalPropID and mainProId %}
+                              {% for cart_item in cart.items %}
+                                {% assign additionalPrice = nil %}
+
+                                {% comment %} Get additional product price {% endcomment %}
+                                {% for props in cart_item.properties %}
+                                  {% if props.first == '_additionalProduct' and props.last == additionalPropID and props.last == mainProId %}
+                                    {% assign additionalPrice = cart_item.price | money | prepend: '+'  %}
+                                  {% endif %}
+                                {% endfor %}
+
+                                {% comment %} Show additional product price when property names matched {% endcomment %}
+                                {% for props in cart_item.properties %}
+                                  {% if props.first == p.first and props.first != '_additionalProduct' and props.first != 'bundle' %}
+                                    <div class="empty-hidden ">{{ additionalPrice }}</div> 
+                                  {% endif %}
+                                {% endfor %}
+                              {% endfor %}
+                            {% endif %}
+                          {% endif %}
+
+                        {%- endif -%}
+                      {%- endfor -%}
+                    {%- endif -%}
+
+                    <div class="cart-item__actions">
+
+                      <product-quantity class="quantity-selector-holder">
+                        <cart-product-quantity>
+                          <button class="qty-button qty-minus no-js-hidden" aria-label="{{ 'general.accessibility_labels.decrease_quantity' | t }}" role="button" controls="updates_{{ item.id }}">
+                            {%- render 'theme-symbols', icon: 'minus' -%}
+                          </button>
+                          <label for="qty-{{ id }}" class="visually-hidden">{{ 'general.accessibility_labels.quantity' | t }}</label>
+                          <input type="number" name="updates[]" value="{{ item.quantity }}" min="0" class="qty qty-selector product__quantity" id="updates_{{ item.id }}" data-href="{{ routes.cart_change_url }}?line={{ forloop.index }}&amp;quantity=$qty">
+                          <button class="qty-button qty-plus no-js-hidden" aria-label="{{ 'general.accessibility_labels.increase_quantity' | t }}" role="button" controls="updates_{{ item.id }}">
+                            {%- render 'theme-symbols', icon: 'plus' -%}
+                          </button>
+                        </cart-product-quantity>
+                      </product-quantity>
+                      
+                      {% assign main_group_product = nil %}
+                      {% assign main_bundle_product = nil %}
+                      {% liquid
+                        for p in item.properties
+                          if p.first == '_mainGroupProduct'
+                            assign main_group_product = p.last
+                          endif
+                          if p.first == '_mainBundleProduct'
+                            assign main_bundle_product = p.last
+                          endif
+                        endfor
+                      %}
+
+                      <a href="{{ routes.cart_change_url }}?line={{ forloop.index }}&amp;quantity=0" 
+                        class="remove text-link text-size--small" 
+                        title="{{ 'cart.remove_item' | t }}" 
+                        {% if main_bundle_product %}
+                          data-main-bundle-product="{{ main_bundle_product }}"
+                        {% elsif main_group_product %}
+                          data-main-group-product="{{ main_group_product }}"
+                        {% endif %}
+                      >{{ 'cart.remove_item' | t }}</a>
+                      
+                    </div>
+
+                  </div>
+
+                </div>
+                  
+              </div>
+
+					{%- endfor -%}
+
+				{%- else -%}
+
+					{{ 'cart.empty' | t }}
+
+				{%- endif -%}
+
+			</div>
+
+		</div>
+
+	</form>
+
+	<span class="cart__count hidden" aria-hidden="true" data-cart-count>{{ cart_item_count }}</span>
+	<span class="cart__total hidden" aria-hidden="true" data-cart-total>{{ cart.total_price | money }}</span>
+
+</cart-form>
+
+<script>
+	window.addEventListener("DOMContentLoaded", (event) => {
+		function removeBundle() {
+			const removeBtn = document.querySelectorAll('.bundle-remove');
+			let selectedItems = [];
+			
+			removeBtn.forEach(item => {
+				item.addEventListener("click", (e) => {
+					e.preventDefault();
+					selectedItems = [];
+					const updates = {};
+			
+					removeBtn.forEach(item => selectedItems.push(item.dataset.ids));
+			
+					selectedItems.forEach((productId) => {
+						updates[productId] = 0; 
+					});
+			
+					fetch('/cart/update.js', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/x-www-form-urlencoded',
+						},
+						body: Object.keys(updates)
+							.map((key) => `updates[${key}]=0`)
+							.join('&'),
+					}).then(() => {
+						window.refreshCart();
+					})
+					//.then((response) => response.json())
+					.catch((error) => {
+						console.error('Error removing products from cart:', error);
+					});
+				});
+			});
+		}
+
+		if (!window.refreshCart) {
+			window.refreshCart = () => {
+				fetch('?section_id=helper-cart')
+					.then(response => response.text())
+					.then(text => {
+						const sectionInnerHTML = new DOMParser().parseFromString(text, 'text/html');
+						const cartFormInnerHTML = sectionInnerHTML.getElementById('AjaxCartForm').innerHTML;
+						const cartSubtotalInnerHTML = sectionInnerHTML.getElementById('AjaxCartSubtotal').innerHTML;
+
+						const cartItems = document.getElementById('AjaxCartForm');
+						cartItems.innerHTML = cartFormInnerHTML;
+						cartItems.ajaxifyCartItems();
+
+						document.querySelectorAll('[data-header-cart-count]').forEach(elm => {
+							elm.textContent = cartItems.querySelector('[data-cart-count]').textContent;
+						});
+						document.querySelectorAll('[data-header-cart-total').forEach(elm => {
+							elm.textContent = cartItems.querySelector('[data-cart-total]').textContent;
+						});
+
+						document.getElementById('AjaxCartSubtotal').innerHTML = cartSubtotalInnerHTML;
+						if (document.querySelector('[data-js-site-cart-sidebar]')) {
+							document.querySelector('[data-js-site-cart-sidebar]').show();
+						}
+
+						if (document.querySelector('cart-recommendations')) {
+							document.querySelector('cart-recommendations').innerHTML = '';
+							document.querySelector('cart-recommendations').generateRecommendations();
+						}
+					});
+			};
+		}
+
+	
+	});
+</script>
+

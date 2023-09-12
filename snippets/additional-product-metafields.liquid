@@ -1,0 +1,120 @@
+<link rel="stylesheet" href="{{ 'additional-products.scss.css' | asset_url }}">
+<script src="{{ 'additional-products.js' | asset_url }}" defer="defer"></script>
+
+{% assign label = product.metafields.label.label %}
+{% assign related_product = product.metafields.accentuate.related_product %}
+{% assign required = product.metafields.accentuate.required %}
+{% assign input_type = product.metafields.accentuate.type-input %}
+{% assign input_palceholder = product.metafields.accentuate.placeholder %}
+{% assign value_checkbox = product.metafields.accentuate.value_for_checkbox %}
+{% assign option_value = product.metafields.accentuate.option_for_dropdown %}
+
+
+{% assign sizes = input_type | size %}
+{% if sizes > 0 %}
+
+  <additional-products>
+
+    {% for input in input_type %}
+      {% liquid
+        assign _product = all_products[related_product[forloop.index0]]
+      %}
+      <div class="properties-box">
+        {% if input != blank %}
+          {% if input_type[forloop.index0] == 'checkbox' %}
+            <div>
+              <div class="properties-box__label properties-box__label--product">{{ label[forloop.index0] }} </div>
+              <div style="display: flex; gap: 5px">
+                <input 
+                  id="label-{{forloop.index0}}" 
+                  {% if required[forloop.index0] == 'true' %}required{% endif %} 
+                  class="player-helmet properties-input properties-input__product" 
+                  value="{{ value_checkbox[forloop.index0] }}" 
+                  type="checkbox" 
+                  name="properties[{{ label[forloop.index0] }}]"
+                  {% if _product and _product.id %}
+                    data-related-product="{{ _product.selected_or_first_available_variant.id }}-{{ forloop.index }}"
+                    data-related-product-id="{{ product.id }}"
+                    data-related-product-price="{{ _product.selected_or_first_available_variant.price }}"
+                    data-related-product-property-name="{{ label[forloop.index0] }}"
+                  {% endif %}
+                >
+                <label for="label-{{ forloop.index0 }}">{{ input_palceholder[forloop.index0] }}</label>
+              </div>
+            </div>
+          {% elsif input_type[forloop.index0] == 'dropdown' %}
+            <div>
+              <div class="properties-box__label properties-box__label--product">{{ label[forloop.index0] }}</div> 
+              <select class="properties-box__label properties-box__label--product" {% if required[forloop.index0] == 'true' %}required{% endif %} id="select-prop" 
+                name="properties[{{ label[forloop.index0] }}]"
+                {% if _product and _product.id %}
+                  data-related-product="{{ _product.selected_or_first_available_variant.id }}-{{ forloop.index }}"
+                  data-related-product-id="{{ product.id }}"
+                  data-related-product-price="{{ _product.selected_or_first_available_variant.price }}"
+                  data-related-product-property-name="{{ label[forloop.index0] }}"
+                {% endif %}
+              >
+                <option value disabled selected>Choose Option</option>
+                {%- assign items = option_value[forloop.index0] %}
+                {% for item in items %}
+                  {% assign stock = item | split:'|' %}
+                    {% for x in stock %}
+                      <option value="{{ x | join: ' '}}">{{ x | join: ' '}}</option>
+                    {% endfor %}
+                  {% endfor %}
+              </select>
+            </div>
+          {% elsif input_type[forloop.index0] == 'number' %}
+            <div>
+              <div class="properties-box__label properties-box__label--product">{{ label[forloop.index0] }} 
+                {% if  _product != blank %}
+                  <span style="font-size: 14px;">+ {{ _product.price | money }}</span> 
+              {% endif %}
+              </div>  
+              <input 
+                {% if required[forloop.index0] == 'true' %}required{% endif %} 
+                class="player-name-itself properties-input properties-input__product" 
+                placeholder="{{ input_palceholder[forloop.index0] }}"
+                type="{{ input_type[forloop.index0] }}" 
+                name="properties[{{ label[forloop.index0] }}]"
+                {% if _product and _product.id %}
+                  data-related-product="{{ _product.selected_or_first_available_variant.id }}-{{ forloop.index }}"
+                  data-related-product-id="{{ product.id }}"
+                  data-related-product-price="{{ _product.selected_or_first_available_variant.price }}"
+                  data-related-product-property-name="{{ label[forloop.index0] }}"
+                {% endif %}
+              >
+            </div>
+          {% else %}
+            <div>
+              <div class="properties-box__label properties-box__label--product">{{ label[forloop.index0] }}
+                {% if  _product != blank %}
+                  <span style="font-size: 14px;">+ {{ _product.price | money }}</span> 
+                {% endif %}
+              </div>  
+              <input 
+                {% if required[forloop.index0] == 'true' %}required{% endif %} 
+                class="player-name-itself properties-input properties-input__product" 
+                placeholder="{{ input_palceholder[forloop.index0] }}" 
+                type="{{ input_type[forloop.index0] }}" 
+                name="properties[{{ label[forloop.index0] }}]"
+                {% if _product and _product.id %}
+                  data-related-product="{{ _product.selected_or_first_available_variant.id }}-{{ forloop.index }}"
+                  data-related-product-id="{{ product.id }}"
+                  data-related-product-price="{{ _product.selected_or_first_available_variant.price }}"
+                  data-related-product-property-name="{{ label[forloop.index0] }}"
+                {% endif %}
+              >
+            </div>
+          {% endif %}
+          {% if product.metafields.accentuate.required[forloop.index0] == 'true' %}
+            <div class="alarm-box">Please select your options before adding this item to cart</div>
+          {% endif %}
+        {% endif %}
+      </div>
+      <br>
+      <hr>
+    {% endfor %}
+  </additional-products>
+
+{% endif %}
